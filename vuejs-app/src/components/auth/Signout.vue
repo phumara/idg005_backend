@@ -6,20 +6,8 @@
           <router-link to="/" class="h1"><b>Admin</b>LTE</router-link>
         </div>
         <div class="card-body">
-          <p class="login-box-msg">Sign up for a new membership</p>
-          <form @submit.prevent="signUp">
-            <div class="input-group mb-3">
-              <input type="text" v-model="user.name" class="form-control" placeholder="Name"
-                :class="{ 'is-invalid': !!userError.name }" />
-              <div class="input-group-append">
-                <div class="input-group-text">
-                  <span class="fas fa-user"></span>
-                </div>
-              </div>
-              <div class="invalid-feedback">
-                {{ userError.name }}
-              </div>
-            </div>
+          <p class="login-box-msg">Sign in to start your session</p>
+          <form @submit.prevent="signIn">
             <div class="input-group mb-3">
               <input type="email" v-model="user.email" class="form-control" placeholder="Email"
                 :class="{ 'is-invalid': !!userError.email }" />
@@ -44,34 +32,25 @@
                 {{ userError.password }}
               </div>
             </div>
-            <div class="input-group mb-3">
-              <input type="password" v-model="user.password_confirmation" class="form-control"
-                placeholder="Confirm Password" autocomplete />
-              <div class="input-group-append">
-                <div class="input-group-text">
-                  <span class="fas fa-lock"></span>
-                </div>
-              </div>
-            </div>
             <div class="row">
               <div class="col-8"></div>
               <div class="col-4">
-                <button type="submit" class="btn btn-primary btn-block">Sign up</button>
+                <button type="submit" class="btn btn-primary btn-block">Sign In</button>
               </div>
             </div>
           </form>
-          <p class="mb-1">
-            <router-link :to="{ name: 'auth.signin' }" class="text-center">I already have an account</router-link>
-          </p>
-          <hr>
-          <div v-if="signedUpEmail" class="mt-3">
-            <p>Signed up with <strong>{{ signedUpEmail }}</strong></p>
-            <p class="mb-3">
-              Didn't receive the verification email?
-            </p>
-            <button @click="sendVerificationEmail" class="btn btn-secondary btn-block">Resend Verification
-              Email</button>
+          <div class="social-auth-links text-center mt-3 mb-3">
+            <p>- OR -</p>
+            <button @click="googleSignIn()" class="btn btn-block btn-danger">
+              <i class="fab fa-google mr-2"></i> Sign in with Google
+            </button>
           </div>
+          <p class="mb-1">
+            <router-link :to="{ name: 'auth.signup' }" class="text-center">Register a new membership</router-link>
+          </p>
+          <p class="mb-0">
+            <router-link :to="{ name: 'auth.reset-password' }" class="text-center">Forgot your password?</router-link>
+          </p>
         </div>
       </div>
     </div>
@@ -80,20 +59,21 @@
 
 <script setup>
 import { useRouter } from "vue-router";
-import { reactive, ref } from "vue";
-import { apiSignUp, apiSendVerificationEmail } from "@/functions/api/auth";
+import { reactive } from "vue";
+import { apiSignIn } from "@/functions/api/auth";
 import { LoadingModal, MessageModal, CloseModal } from "@/functions/swal";
+import { useUserStore } from "@/stores/user";
+import { apiGoogleOAuthRedirect } from "@/functions/api/google-oauth";
+
 const router = useRouter();
+const userStore = useUserStore();
 
 const user = reactive({
-  name: "",
   email: "",
   password: "",
-  password_confirmation: "",
 });
 
 const userError = reactive({
-  name: "",
   email: "",
   password: "",
 });
@@ -106,18 +86,16 @@ function resetAllState() {
   Object.assign(userError, defaultUserError);
 }
 
-async function signUp() {
-  resetSignedUpEmail();
+async function signIn() {
   try {
-    LoadingModal('Signing Up...');
-    await apiSignUp(user);
-    signedUpEmail.value = user.email;
+    LoadingModal('Signing In...');
+    const response = await apiSignIn(user);
+    const { data } = response;
+    userStore.setState(data.user);
+    userStore.setSanctumToken(data.token);
     resetAllState();
-    return MessageModal({
-      icon: "success",
-      title: "Success",
-      text: "Your account has been created successfully."
-    });
+    router.replace({ name: "dashboard" });
+    return CloseModal();
   } catch (error) {
     const { response } = error;
     if (!response) {
@@ -136,27 +114,13 @@ async function signUp() {
   }
 }
 
-const signedUpEmail = ref("");
-async function sendVerificationEmail() {
+const googleSignIn = async () => {
   try {
-    LoadingModal('Requesting verification email...');
-    const response = await apiSendVerificationEmail(signedUpEmail.value);
-    const { data } = response;
-    return MessageModal({
-      icon: "success",
-      title: "Success",
-      text: data.message
-    });
+    LoadingModal();
+    const response = await apiGoogleOAuthRedirect();
+    window.location.href = response.data.redirect_url;
   } catch (error) {
-    const { response } = error;
-    if (!response) {
-      return MessageModal({ icon: "error", title: "Error", text: error.message });
-    }
-    const { data } = response;
-    return MessageModal({ icon: "error", title: "Error", text: data.message });
+    return MessageModal({ icon: "error", title: "Error", text: error.message || error.response.data.message });
   }
-}
-function resetSignedUpEmail() {
-  signedUpEmail.value = "";
-}
+};
 </script>
