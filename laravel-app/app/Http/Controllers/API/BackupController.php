@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Jobs\CreateBackupJob;
+use Carbon\Carbon;
 use Exception;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Storage;
@@ -46,7 +47,7 @@ class BackupController extends Controller
                 $size = $this->disk->size($file);
                 $size_human = $this->formatBytes($size);
                 $date = $this->disk->lastModified($file);
-                $date_human = date('Y-m-d H:i:s', $date);
+                $date_human = Carbon::createFromTimestamp($date, '+07:00')->format('Y-m-d H:i:s');
 
                 $total_backups++;
                 $total_size += $size;
